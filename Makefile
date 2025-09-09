@@ -57,6 +57,9 @@ build:
 	@echo "Building optimized matrix multiplication..."
 	$(NVCC) $(NVCC_FLAGS) $(CUDA_INC) $(SRC_DIR)/optimized_matmul.cu -o $(BUILD_DIR)/optimized_matmul $(CUDA_LIB)
 	
+	@echo "Building CUBLAS matrix multiplication..."
+	$(NVCC) $(NVCC_FLAGS) $(CUDA_INC) $(SRC_DIR)/cublas_matmul.cu -o $(BUILD_DIR)/cublas_matmul $(CUDA_LIB)
+	
 	@echo "✓ CUDA kernels built successfully"
 
 # Test CUDA kernels and baselines
@@ -68,6 +71,8 @@ test: build
 	./$(BUILD_DIR)/tiled_matmul
 	@echo "Running optimized implementation..."
 	./$(BUILD_DIR)/optimized_matmul
+	@echo "Running CUBLAS implementation..."
+	./$(BUILD_DIR)/cublas_matmul
 	@echo "Testing baseline implementations..."
 	cd baselines && $(PYTHON) numpy_matmul.py
 	cd baselines && $(PYTHON) pytorch_matmul.py
