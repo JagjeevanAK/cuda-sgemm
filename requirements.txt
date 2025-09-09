@@ -11,15 +11,3 @@ black>=21.0.0
 flake8>=3.8.0
 psutil>=5.8.0
 GPUtil>=1.4.0
-
-# Optional: for enhanced profiling
-nvtx>=0.2.1
-
-# Optional: for Jupyter notebooks (if you want to create interactive demos)
-jupyter>=1.0.0
-ipykernel>=6.0.0
-
-
-# Documentation (optional)
-sphinx>=4.0.0
-sphinx-rtd-theme>=0.5.0

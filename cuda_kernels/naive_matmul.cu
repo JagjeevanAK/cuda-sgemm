@@ -14,12 +14,8 @@ using namespace std;
         } \
     } while(0)
 
-__global__ void naive_matmul_kernel(
-    const float* A, 
-    const float* B, 
-    float* C, 
-    int M, int N, int K
-) {
+__global__ void naive_matmul_kernel( const float* A, const float* B, float* C, int M, int N, int K ) {
+    
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
     

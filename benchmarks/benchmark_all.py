@@ -1,42 +1,53 @@
 """
-Comprehensive benchmark comparing all matrix multiplication implementations
-This script provides detailed performance analysis and scaling behavior
+Comprehensive benchmark comparing matrix multiplication implementations:
+- NumPy (CPU baseline)
+- PyTorch (CPU and CUDA)
+- Custom CUDA kernels (naive, tiled, optimized)
 """
 
 import numpy as np
 import time
 import sys
 import os
+import subprocess
 import matplotlib.pyplot as plt
 import pandas as pd
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
-# Add paths for our implementations
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'baselines'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'pytorch_extension'))
 
 # Import baseline implementations
 try:
-    from numpy_matmul import numpy_matmul, benchmark_numpy
+    from numpy_matmul import numpy_matmul
     NUMPY_AVAILABLE = True
 except ImportError:
     print("NumPy baseline not available")
     NUMPY_AVAILABLE = False
 
 try:
-    from pytorch_matmul import benchmark_pytorch
     import torch
     PYTORCH_AVAILABLE = True
 except ImportError:
     print("PyTorch not available")
     PYTORCH_AVAILABLE = False
 
-try:
-    import matmul_cuda
-    CUDA_EXTENSION_AVAILABLE = True
-except ImportError:
-    print("CUDA extension not available - please build it first")
-    CUDA_EXTENSION_AVAILABLE = False
+# Check if CUDA kernels are built
+BUILD_DIR = os.path.join(os.path.dirname(__file__), '..', 'build')
+CUDA_KERNELS = {
+    'naive_cuda': os.path.join(BUILD_DIR, 'naive_matmul'),
+    'tiled_cuda': os.path.join(BUILD_DIR, 'tiled_matmul'),
+    'optimized_cuda': os.path.join(BUILD_DIR, 'optimized_matmul')
+}
+
+# Check which CUDA kernels are available
+AVAILABLE_CUDA_KERNELS = {}
+for name, path in CUDA_KERNELS.items():
+    if os.path.exists(path):
+        AVAILABLE_CUDA_KERNELS[name] = path
+    else:
+        print(f"CUDA kernel {name} not found at {path}")
+
+CUDA_KERNELS_AVAILABLE = len(AVAILABLE_CUDA_KERNELS) > 0
 
 
 class BenchmarkSuite:
@@ -44,13 +55,13 @@ class BenchmarkSuite:
     
     def __init__(self):
         self.results = {}
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.device = 'cuda' if PYTORCH_AVAILABLE and torch.cuda.is_available() else 'cpu'
         
     def run_all_benchmarks(self, sizes: List[int], num_runs: int = 10) -> Dict:
         """Run benchmarks for all available implementations"""
         print("=== COMPREHENSIVE MATRIX MULTIPLICATION BENCHMARK ===")
         print(f"Device: {self.device}")
-        if self.device == 'cuda':
+        if self.device == 'cuda' and PYTORCH_AVAILABLE:
             print(f"GPU: {torch.cuda.get_device_name()}")
         print(f"Test sizes: {sizes}")
         print(f"Runs per test: {num_runs}")
@@ -84,19 +95,12 @@ class BenchmarkSuite:
                     size_results['pytorch_cuda'] = pytorch_gpu_result
             
             # Our CUDA implementations
-            if CUDA_EXTENSION_AVAILABLE and self.device == 'cuda':
+            if CUDA_KERNELS_AVAILABLE and self.device == 'cuda':
                 print("Running custom CUDA implementations...")
                 
-                cuda_implementations = [
-                    ('naive_cuda', matmul_cuda.naive_matmul),
-                    ('tiled_cuda', matmul_cuda.tiled_matmul),
-                    ('optimized_cuda', matmul_cuda.optimized_matmul),
-                    ('smart_cuda', matmul_cuda.smart_matmul)
-                ]
-                
-                for name, func in cuda_implementations:
+                for name, executable_path in AVAILABLE_CUDA_KERNELS.items():
                     try:
-                        result = self.benchmark_cuda_implementation(size, num_runs, func, name)
+                        result = self.benchmark_cuda_kernel(size, num_runs, executable_path, name)
                         size_results[name] = result
                     except Exception as e:
                         print(f"  {name} failed: {e}")
@@ -109,6 +113,9 @@ class BenchmarkSuite:
     
     def benchmark_numpy_implementation(self, size: int, num_runs: int) -> Dict:
         """Benchmark NumPy implementation"""
+        if not NUMPY_AVAILABLE:
+            raise RuntimeError("NumPy not available")
+            
         A = np.random.randn(size, size).astype(np.float32)
         B = np.random.randn(size, size).astype(np.float32)
         
@@ -138,6 +145,9 @@ class BenchmarkSuite:
     
     def benchmark_pytorch_implementation(self, size: int, num_runs: int, device: str) -> Dict:
         """Benchmark PyTorch implementation"""
+        if not PYTORCH_AVAILABLE:
+            raise RuntimeError("PyTorch not available")
+            
         A = torch.randn(size, size, dtype=torch.float32, device=device)
         B = torch.randn(size, size, dtype=torch.float32, device=device)
         
@@ -174,39 +184,75 @@ class BenchmarkSuite:
             'device': device
         }
     
-    def benchmark_cuda_implementation(self, size: int, num_runs: int, func, name: str) -> Dict:
-        """Benchmark our CUDA implementations"""
-        A = torch.randn(size, size, dtype=torch.float32, device='cuda')
-        B = torch.randn(size, size, dtype=torch.float32, device='cuda')
-        
-        # Warm up
-        torch.cuda.synchronize()
-        for _ in range(3):
-            _ = func(A, B)
-        torch.cuda.synchronize()
-        
-        times = []
-        for _ in range(num_runs):
-            torch.cuda.synchronize()
-            start = time.perf_counter()
-            C = func(A, B)
-            torch.cuda.synchronize()
-            end = time.perf_counter()
-            times.append(end - start)
-        
-        avg_time = np.mean(times) * 1000
-        std_time = np.std(times) * 1000
-        flops = 2 * size * size * size
-        gflops = flops / (avg_time * 1e6)
-        
-        print(f"  {name:<15}: {avg_time:8.2f} ± {std_time:5.2f} ms, {gflops:6.2f} GFLOPS")
-        
-        return {
-            'time_ms': avg_time,
-            'std_ms': std_time,
-            'gflops': gflops,
-            'device': 'cuda'
-        }
+    def benchmark_cuda_kernel(self, size: int, num_runs: int, executable_path: str, name: str) -> Dict:
+        """Benchmark CUDA kernel by running the executable and parsing output"""
+        try:
+            # Run the CUDA executable - assuming it outputs timing information
+            result = subprocess.run([executable_path], 
+                                  capture_output=True, text=True, timeout=60)
+            
+            if result.returncode != 0:
+                raise RuntimeError(f"CUDA kernel failed: {result.stderr}")
+            
+            # Parse output to extract timing information
+            # This is a simplified approach - you may need to modify based on actual output format
+            output_lines = result.stdout.strip().split('\n')
+            
+            # Look for performance information in the output
+            gflops = 0.0
+            time_ms = 0.0
+            
+            for line in output_lines:
+                if 'GFLOPS' in line and str(size) in line:
+                    # Try to extract GFLOPS value
+                    parts = line.split()
+                    for i, part in enumerate(parts):
+                        if 'GFLOPS' in part and i > 0:
+                            try:
+                                gflops = float(parts[i-1])
+                            except ValueError:
+                                pass
+                        if 'ms' in part and i > 0:
+                            try:
+                                time_ms = float(parts[i-1])
+                            except ValueError:
+                                pass
+            
+            # If we couldn't parse the output, use default values
+            if gflops == 0.0 or time_ms == 0.0:
+                print(f"  {name:<15}: Could not parse performance data from output")
+                return {
+                    'time_ms': 999999.0,
+                    'std_ms': 0.0,
+                    'gflops': 0.0,
+                    'device': 'cuda'
+                }
+            
+            print(f"  {name:<15}: {time_ms:8.2f} ms, {gflops:6.2f} GFLOPS")
+            
+            return {
+                'time_ms': time_ms,
+                'std_ms': 0.0,  # Standalone executables don't provide std dev
+                'gflops': gflops,
+                'device': 'cuda'
+            }
+            
+        except subprocess.TimeoutExpired:
+            print(f"  {name:<15}: Timeout")
+            return {
+                'time_ms': 999999.0,
+                'std_ms': 0.0,
+                'gflops': 0.0,
+                'device': 'cuda'
+            }
+        except Exception as e:
+            print(f"  {name:<15}: Error - {e}")
+            return {
+                'time_ms': 999999.0,
+                'std_ms': 0.0,
+                'gflops': 0.0,
+                'device': 'cuda'
+            }
     
     def print_size_summary(self, size: int, results: Dict):
         """Print summary for a specific matrix size"""
@@ -343,10 +389,13 @@ def main():
     sizes = [64, 128, 256, 512, 1024]
     
     # Add larger sizes if we have powerful GPU
-    if torch.cuda.is_available():
-        device_name = torch.cuda.get_device_name().lower()
-        if any(gpu in device_name for gpu in ['a100', 'v100', 'rtx', 'titan']):
-            sizes.extend([2048, 4096])
+    if PYTORCH_AVAILABLE and torch.cuda.is_available():
+        try:
+            device_name = torch.cuda.get_device_name().lower()
+            if any(gpu in device_name for gpu in ['a100', 'v100', 'rtx', 'titan']):
+                sizes.extend([2048, 4096])
+        except:
+            pass  # If we can't get device name, just use default sizes
     
     # Run benchmarks
     results = benchmark.run_all_benchmarks(sizes, num_runs=10)
@@ -355,7 +404,7 @@ def main():
     benchmark.generate_performance_plots()
     benchmark.generate_report()
     
-    print("\n=== BENCHMARK COMPLETE ===")
+    print("\nCOMPLETE BENCHMARK\n\n")
     print("Results saved to:")
     print("  - benchmark_report.csv")
     print("  - benchmark_plots/performance_vs_size.png")

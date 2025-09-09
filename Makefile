@@ -1,5 +1,5 @@
 # Makefile for Fast Matrix Multiplication Project
-# Provides convenient commands for building, testing, and benchmarking
+# Demonstrates performance comparison between CUDA kernels, PyTorch, and NumPy
 
 # Variables
 PYTHON := python3
@@ -9,7 +9,6 @@ CUDA_ARCH := -gencode arch=compute_70,code=sm_70 -gencode arch=compute_75,code=s
 
 # Directories
 SRC_DIR := cuda_kernels
-EXT_DIR := pytorch_extension
 BENCH_DIR := benchmarks
 BUILD_DIR := build
 
@@ -18,7 +17,7 @@ NVCC_FLAGS := -O3 -std=c++14 --use_fast_math $(CUDA_ARCH)
 CUDA_INC := -I/usr/local/cuda/include
 CUDA_LIB := -L/usr/local/cuda/lib64 -lcudart -lcublas
 
-.PHONY: all setup build-cuda build-extension test benchmark clean help
+.PHONY: all setup build test benchmark clean help
 
 # Default target
 all: setup build
@@ -29,22 +28,14 @@ help:
 	@echo ""
 	@echo "Setup and Installation:"
 	@echo "  make setup          - Install Python dependencies"
-	@echo "  make build          - Build all CUDA kernels and extensions"
-	@echo "  make build-cuda     - Build standalone CUDA executables"
-	@echo "  make build-extension - Build PyTorch extension"
+	@echo "  make build          - Build all CUDA kernels"
 	@echo ""
 	@echo "Testing and Benchmarking:"
-	@echo "  make test           - Run all tests"
-	@echo "  make test-extension - Test PyTorch extension"
-	@echo "  make test-cuda      - Test standalone CUDA kernels"
-	@echo "  make benchmark      - Run comprehensive benchmarks"
-	@echo "  make demo           - Run transformer inference demo"
+	@echo "  make test           - Test CUDA kernels and baselines"
+	@echo "  make benchmark      - Run comprehensive performance comparison"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  make clean          - Clean build artifacts"
-	@echo "  make format         - Format Python code"
-	@echo "  make profile        - Run performance profiling"
-	@echo "  make docker         - Build Docker container (if available)"
 
 # Setup Python environment
 setup:
@@ -52,11 +43,8 @@ setup:
 	$(PIP) install -r requirements.txt
 	@echo "✓ Dependencies installed"
 
-# Build all components
-build: build-cuda build-extension
-
-# Build standalone CUDA executables
-build-cuda:
+# Build CUDA kernels
+build:
 	@echo "Building CUDA kernels..."
 	@mkdir -p $(BUILD_DIR)
 	
@@ -71,14 +59,8 @@ build-cuda:
 	
 	@echo "✓ CUDA kernels built successfully"
 
-# Build PyTorch extension
-build-extension:
-	@echo "Building PyTorch extension..."
-	cd $(EXT_DIR) && $(PYTHON) setup.py build_ext --inplace
-	@echo "✓ PyTorch extension built successfully"
-
-# Test standalone CUDA kernels
-test-cuda: build-cuda
+# Test CUDA kernels and baselines
+test: build
 	@echo "Testing CUDA kernels..."
 	@echo "Running naive implementation..."
 	./$(BUILD_DIR)/naive_matmul
@@ -86,17 +68,7 @@ test-cuda: build-cuda
 	./$(BUILD_DIR)/tiled_matmul
 	@echo "Running optimized implementation..."
 	./$(BUILD_DIR)/optimized_matmul
-	@echo "✓ CUDA tests completed"
-
-# Test PyTorch extension
-test-extension: build-extension
-	@echo "Testing PyTorch extension..."
-	cd $(EXT_DIR) && $(PYTHON) test_extension.py
-	@echo "✓ Extension tests completed"
-
-# Run all tests
-test: test-cuda test-extension
-	@echo "Running baseline tests..."
+	@echo "Testing baseline implementations..."
 	cd baselines && $(PYTHON) numpy_matmul.py
 	cd baselines && $(PYTHON) pytorch_matmul.py
 	@echo "✓ All tests completed"
@@ -107,47 +79,15 @@ benchmark: build
 	cd $(BENCH_DIR) && $(PYTHON) benchmark_all.py
 	@echo "✓ Benchmarks completed - check benchmark_plots/ and benchmark_report.csv"
 
-# Run transformer inference demo
-demo: build-extension
-	@echo "Running transformer inference demo..."
-	cd $(BENCH_DIR) && $(PYTHON) inference_demo.py
-	@echo "✓ Demo completed"
-
-# Performance profiling with nvidia profiler
-profile: build-extension
-	@echo "Running performance profiling..."
-	@echo "Note: This requires nsight-systems or nsight-compute to be installed"
-	cd $(BENCH_DIR) && nsys profile --output=profile_results $(PYTHON) inference_demo.py
-	@echo "✓ Profiling completed - check profile_results.nsys-rep"
-
-# Format Python code
-format:
-	@echo "Formatting Python code..."
-	black baselines/ $(EXT_DIR)/ $(BENCH_DIR)/ --line-length 100
-	@echo "✓ Code formatted"
-
 # Clean build artifacts
 clean:
 	@echo "Cleaning build artifacts..."
 	rm -rf $(BUILD_DIR)
-	rm -rf $(EXT_DIR)/build
-	rm -rf $(EXT_DIR)/*.so
-	rm -rf $(EXT_DIR)/*.egg-info
 	find . -name "*.pyc" -delete
 	find . -name "__pycache__" -delete
 	rm -f benchmark_report.csv
 	rm -rf benchmark_plots/
 	@echo "✓ Clean completed"
-
-# Quick development cycle
-dev: clean build test
-	@echo "✓ Development cycle completed"
-
-# Install for system-wide use
-install: build
-	@echo "Installing PyTorch extension..."
-	cd $(EXT_DIR) && $(PYTHON) setup.py install
-	@echo "✓ Installation completed"
 
 # Uninstall
 uninstall:
