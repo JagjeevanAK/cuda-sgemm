@@ -1,15 +1,3 @@
-/*
- * Highly optimized CUDA matrix multiplication kernel
- * 
- * This implementation includes several advanced optimizations:
- * 1. Register blocking (thread-level tiling)
- * 2. Loop unrolling
- * 3. Double buffering with shared memory
- * 4. Optimized memory coalescing
- * 5. Bank conflict avoidance
- * 6. Vectorized memory access (float4)
- */
-
 #include <cuda_runtime.h>
 #include <iostream>
 #include <chrono>
@@ -25,28 +13,13 @@ using namespace std;
         } \
     } while(0)
 
-// Optimized tile sizes - tuned for modern GPUs
 #define TILE_SIZE 32
 #define BLOCK_SIZE 16
 #define THREAD_TILE_M 4
 #define THREAD_TILE_N 4
 
-/**
- * Highly optimized matrix multiplication kernel with register blocking
- * 
- * Key optimizations:
- * 1. Each thread computes a THREAD_TILE_M x THREAD_TILE_N submatrix
- * 2. Uses register arrays to store intermediate results
- * 3. Shared memory with bank conflict avoidance
- * 4. Loop unrolling for better instruction-level parallelism
- */
-__global__ void optimized_matmul_kernel(
-    const float* __restrict__ A, 
-    const float* __restrict__ B, 
-    float* __restrict__ C, 
-    int M, int N, int K
-) {
-    // Shared memory with padding to avoid bank conflicts
+__global__ void optimized_matmul_kernel( const float* __restrict__ A, const float* __restrict__ B, float* __restrict__ C, int M, int N, int K ) {
+
     __shared__ float tile_A[TILE_SIZE][TILE_SIZE + 1];
     __shared__ float tile_B[TILE_SIZE][TILE_SIZE + 1];
     
@@ -143,10 +116,6 @@ __global__ void optimized_matmul_kernel(
     }
 }
 
-/**
- * Alternative kernel using vectorized memory access (float4)
- * Good for cases where matrix dimensions are multiples of 4
- */
 __global__ void optimized_matmul_kernel_vectorized(
     const float* __restrict__ A, 
     const float* __restrict__ B, 
@@ -184,7 +153,6 @@ __global__ void optimized_matmul_kernel_vectorized(
         
         __syncthreads();
         
-        // Unrolled computation
         #pragma unroll 16
         for (int k = 0; k < TILE_SIZE; k++) {
             sum += tile_A[ty][k] * tile_B[k][tx];
@@ -198,9 +166,6 @@ __global__ void optimized_matmul_kernel_vectorized(
     }
 }
 
-/**
- * Host function for optimized matrix multiplication
- */
 void optimized_matmul(
     const float* h_A, 
     const float* h_B, 
@@ -213,46 +178,35 @@ void optimized_matmul(
     size_t size_B = K * N * sizeof(float);
     size_t size_C = M * N * sizeof(float);
     
-    // Allocate device memory
     CHECK_CUDA(cudaMalloc(&d_A, size_A));
     CHECK_CUDA(cudaMalloc(&d_B, size_B));
     CHECK_CUDA(cudaMalloc(&d_C, size_C));
     
-    // Copy data to device
     CHECK_CUDA(cudaMemcpy(d_A, h_A, size_A, cudaMemcpyHostToDevice));
     CHECK_CUDA(cudaMemcpy(d_B, h_B, size_B, cudaMemcpyHostToDevice));
     
-    // Launch configuration for register blocking kernel
     dim3 blockDim(TILE_SIZE / THREAD_TILE_N, TILE_SIZE / THREAD_TILE_M);
     dim3 gridDim(
         (N + TILE_SIZE - 1) / TILE_SIZE,
         (M + TILE_SIZE - 1) / TILE_SIZE
     );
     
-    // Launch optimized kernel
     optimized_matmul_kernel<<<gridDim, blockDim>>>(d_A, d_B, d_C, M, N, K);
     CHECK_CUDA(cudaGetLastError());
     CHECK_CUDA(cudaDeviceSynchronize());
     
-    // Copy result back
     CHECK_CUDA(cudaMemcpy(h_C, d_C, size_C, cudaMemcpyDeviceToHost));
     
-    // Cleanup
     CHECK_CUDA(cudaFree(d_A));
     CHECK_CUDA(cudaFree(d_B));
     CHECK_CUDA(cudaFree(d_C));
 }
 
-/**
- * Benchmark function for optimized implementation
- */
 float benchmark_optimized_matmul(int M, int N, int K, int num_runs = 10) {
-    // Allocate host memory
     float* h_A = new float[M * K];
     float* h_B = new float[K * N];
     float* h_C = new float[M * N];
     
-    // Initialize with random values
     srand(42);
     for (int i = 0; i < M * K; i++) h_A[i] = static_cast<float>(rand()) / RAND_MAX;
     for (int i = 0; i < K * N; i++) h_B[i] = static_cast<float>(rand()) / RAND_MAX;
@@ -280,7 +234,6 @@ float benchmark_optimized_matmul(int M, int N, int K, int num_runs = 10) {
               << ", Time: " << avg_time_ms << " ms"
               << ", Performance: " << gflops << " GFLOPS" << endl;
     
-    // Cleanup
     delete[] h_A;
     delete[] h_B;
     delete[] h_C;
@@ -288,18 +241,14 @@ float benchmark_optimized_matmul(int M, int N, int K, int num_runs = 10) {
     return avg_time_ms;
 }
 
-/**
- * Analyze GPU utilization and memory bandwidth
- */
 void analyze_performance(int M, int N, int K, float time_ms) {
-    // Calculate theoretical values
+
     long long flops = 2LL * M * N * K;
     long long memory_ops = (long long)(M * K + K * N + M * N) * sizeof(float);
     
     float gflops = flops / (time_ms * 1e6);
     float bandwidth_gb_s = memory_ops / (time_ms * 1e6);
     
-    // Get device properties for theoretical peaks
     cudaDeviceProp prop;
     cudaGetDeviceProperties(&prop, 0);
     
@@ -316,7 +265,6 @@ void analyze_performance(int M, int N, int K, float time_ms) {
 int main() {
     cout << "=== Optimized CUDA Matrix Multiplication Benchmark ===" << endl;
     
-    // Display optimization features
     cout << "Optimizations enabled:" << endl;
     cout << "- Register blocking: " << THREAD_TILE_M << "x" << THREAD_TILE_N << endl;
     cout << "- Shared memory tiling: " << TILE_SIZE << "x" << TILE_SIZE << endl;

@@ -1,16 +1,9 @@
-/*
- * Naive CUDA matrix multiplication kernel
- * Each thread computes one element of the output matrix
- * This is the simplest implementation - not optimized for memory access patterns
- */
-
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
 #include <iostream>
 #include <chrono>
 using namespace std;
 
-// CUDA error checking macro
 #define CHECK_CUDA(call) \
     do { \
         cudaError_t error = call; \
@@ -21,13 +14,6 @@ using namespace std;
         } \
     } while(0)
 
-/**
- * Naive CUDA kernel for matrix multiplication
- * C = A * B where A is MxK, B is KxN, C is MxN
- * 
- * Each thread computes one element C[row][col]
- * Memory access pattern is not optimized - many global memory accesses
- */
 __global__ void naive_matmul_kernel(
     const float* A, 
     const float* B, 
@@ -49,15 +35,7 @@ __global__ void naive_matmul_kernel(
     }
 }
 
-/**
- * Host function to launch naive matrix multiplication
- */
- 
-void naive_matmul(
-    const float* h_A, 
-    const float* h_B, 
-    float* h_C, 
-    int M, int N, int K) {
+void naive_matmul( const float* h_A, const float* h_B, float* h_C, int M, int N, int K) {
 
     float *d_A, *d_B, *d_C;
     
@@ -90,22 +68,17 @@ void naive_matmul(
     CHECK_CUDA(cudaFree(d_C));
 }
 
-/**
- * Benchmark function for naive implementation
- */
 float benchmark_naive_matmul(int M, int N, int K, int num_runs = 10) {
 
     float* h_A = new float[M * K];
     float* h_B = new float[K * N];
     float* h_C = new float[M * N];
     
-    // Initialize matrices with random values
     for (int i = 0; i < M * K; i++) h_A[i] = static_cast<float>(rand()) / RAND_MAX;
     for (int i = 0; i < K * N; i++) h_B[i] = static_cast<float>(rand()) / RAND_MAX;
     
     naive_matmul(h_A, h_B, h_C, M, N, K);
     
-    // Benchmark
     auto start = chrono::high_resolution_clock::now();
     
     for (int run = 0; run < num_runs; run++) {
@@ -132,11 +105,8 @@ float benchmark_naive_matmul(int M, int N, int K, int num_runs = 10) {
     return avg_time_ms;
 }
 
-/**
- * Main function for testing
- */
 int main() {
-    cout << "=== Naive CUDA Matrix Multiplication Benchmark ===" << endl;
+    cout << "Naive CUDA Matrix Multiplication Benchmark \n\n" << endl;
     
     cudaDeviceProp prop;
     CHECK_CUDA(cudaGetDeviceProperties(&prop, 0));

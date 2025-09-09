@@ -25,7 +25,6 @@ void optimized_matmul_cuda(
     int M, int N, int K
 );
 
-// Check tensor properties
 #define CHECK_CUDA(x) TORCH_CHECK(x.device().is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
@@ -37,7 +36,6 @@ torch::Tensor naive_matmul(torch::Tensor A, torch::Tensor B) {
     CHECK_INPUT(A);
     CHECK_INPUT(B);
     
-    // Get dimensions
     auto A_sizes = A.sizes();
     auto B_sizes = B.sizes();
     
@@ -68,9 +66,6 @@ torch::Tensor naive_matmul(torch::Tensor A, torch::Tensor B) {
     return C;
 }
 
-/**
- * Tiled CUDA matrix multiplication wrapper
- */
 torch::Tensor tiled_matmul(torch::Tensor A, torch::Tensor B) {
     CHECK_INPUT(A);
     CHECK_INPUT(B);
@@ -150,7 +145,7 @@ torch::Tensor batched_matmul(torch::Tensor A, torch::Tensor B, string implementa
     
     // Support both 2D and 3D tensors (batched)
     if (A_sizes.size() == 3 && B_sizes.size() == 3) {
-        // Batched operation
+
         TORCH_CHECK(A_sizes[0] == B_sizes[0], "Batch sizes must match");
         TORCH_CHECK(A_sizes[2] == B_sizes[1], "Matrix dimensions must be compatible");
         
@@ -166,7 +161,6 @@ torch::Tensor batched_matmul(torch::Tensor A, torch::Tensor B, string implementa
         
         torch::Tensor C = torch::zeros({batch_size, M, N}, options);
         
-        // Process each batch
         for (int b = 0; b < batch_size; b++) {
             torch::Tensor A_batch = A[b];
             torch::Tensor B_batch = B[b];
@@ -198,7 +192,6 @@ torch::Tensor batched_matmul(torch::Tensor A, torch::Tensor B, string implementa
         
         return C;
     } else {
-        // Single matrix operation
         if (implementation == "naive") {
             return naive_matmul(A, B);
         } else if (implementation == "tiled") {
