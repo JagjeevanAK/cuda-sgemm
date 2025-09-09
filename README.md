@@ -21,15 +21,18 @@ Fast-Matmul/
 ├── cuda_kernels/             # CUDA implementations
 │   ├── naive_matmul.cu       # Basic CUDA kernel
 │   ├── tiled_matmul.cu       # Shared memory tiled version
-│   └── optimized_matmul.cu   # Fully optimized version
+│   ├── optimized_matmul.cu   # Fully optimized version
+│   └── cublas_matmul.cu      # NVIDIA cuBLAS integration
 ├── pytorch_extension/        # PyTorch integration
 │   ├── setup.py             # Extension build script
 │   ├── matmul_cuda.cpp      # C++ wrapper
 │   └── test_extension.py    # Test the extension
 ├── benchmarks/               # Performance comparisons
 │   ├── benchmark_all.py     # Compare all implementations
-│   └── inference_demo.py    # Transformer block demo
+│   ├── inference_demo.py    # Transformer block demo
+│   └── test_cublas_integration.py # Test CUBLAS integration
 ├── requirements.txt          # Python dependencies
+├── demo_cublas.py           # CUBLAS demo script
 └── Makefile                 # Build automation
 ```
 
@@ -41,9 +44,10 @@ Fast-Matmul/
 - [x] Performance benchmarking
 
 ### 2. CUDA Kernel Development
-- [ ] Naive CUDA kernel (1 thread per element)
-- [ ] Shared memory tiled implementation
-- [ ] Optimized version with loop unrolling & register blocking
+- [x] Naive CUDA kernel (1 thread per element)
+- [x] Shared memory tiled implementation
+- [x] Optimized version with loop unrolling & register blocking
+- [x] **NVIDIA cuBLAS integration** (industry-standard performance)
 
 ### 3. PyTorch Integration
 - [ ] Wrap CUDA kernel as PyTorch extension
@@ -86,6 +90,35 @@ python benchmarks/benchmark_all.py
 | Naive CUDA    | 1024x1024   | TBD       | TBD     |
 | Tiled CUDA    | 1024x1024   | TBD       | TBD     |
 | Optimized     | 1024x1024   | TBD       | TBD     |
+| **cuBLAS**    | 1024x1024   | TBD       | TBD     |
+
+## CUBLAS Integration
+
+The project now includes **NVIDIA cuBLAS** integration, showcasing:
+
+### Features:
+- **Industry-standard performance**: cuBLAS is NVIDIA's highly optimized BLAS library
+- **Tensor Core utilization**: Automatic use of Tensor Cores on modern GPUs
+- **Batched operations**: Support for batch matrix multiplication
+- **Multiple math modes**: Optimized for different precision requirements
+
+### Key Advantages:
+- **Production-ready**: Used by PyTorch, TensorFlow, and other ML frameworks
+- **Hardware-optimized**: Leverages all GPU capabilities (Tensor Cores, etc.)
+- **Maintenance-free**: No need to maintain custom optimizations
+
+### Usage:
+```bash
+# Build and test CUBLAS integration
+make build
+./build/cublas_matmul
+
+# Test integration with benchmark suite
+python benchmarks/test_cublas_integration.py
+
+# Run comprehensive benchmarks including CUBLAS
+python benchmarks/benchmark_all.py
+```
 
 ## ML Inference Integration
 

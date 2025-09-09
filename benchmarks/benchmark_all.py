@@ -36,7 +36,8 @@ BUILD_DIR = os.path.join(os.path.dirname(__file__), '..', 'build')
 CUDA_KERNELS = {
     'naive_cuda': os.path.join(BUILD_DIR, 'naive_matmul'),
     'tiled_cuda': os.path.join(BUILD_DIR, 'tiled_matmul'),
-    'optimized_cuda': os.path.join(BUILD_DIR, 'optimized_matmul')
+    'optimized_cuda': os.path.join(BUILD_DIR, 'optimized_matmul'),
+    'cublas_cuda': os.path.join(BUILD_DIR, 'cublas_matmul')
 }
 
 # Check which CUDA kernels are available
@@ -187,15 +188,19 @@ class BenchmarkSuite:
     def benchmark_cuda_kernel(self, size: int, num_runs: int, executable_path: str, name: str) -> Dict:
         """Benchmark CUDA kernel by running the executable and parsing output"""
         try:
-            # Run the CUDA executable - assuming it outputs timing information
-            result = subprocess.run([executable_path], 
-                                  capture_output=True, text=True, timeout=60)
+            # For CUBLAS and other kernels that accept size arguments
+            if 'cublas' in name:
+                result = subprocess.run([executable_path, str(size)], 
+                                      capture_output=True, text=True, timeout=60)
+            else:
+                # Run the CUDA executable - assuming it outputs timing information
+                result = subprocess.run([executable_path], 
+                                      capture_output=True, text=True, timeout=60)
             
             if result.returncode != 0:
                 raise RuntimeError(f"CUDA kernel failed: {result.stderr}")
             
             # Parse output to extract timing information
-            # This is a simplified approach - you may need to modify based on actual output format
             output_lines = result.stdout.strip().split('\n')
             
             # Look for performance information in the output
@@ -203,8 +208,9 @@ class BenchmarkSuite:
             time_ms = 0.0
             
             for line in output_lines:
-                if 'GFLOPS' in line and str(size) in line:
-                    # Try to extract GFLOPS value
+                # Look for the benchmark result line
+                if 'BENCHMARK_RESULT:' in line or ('GFLOPS' in line and str(size) in line):
+                    # Try to extract GFLOPS and time values
                     parts = line.split()
                     for i, part in enumerate(parts):
                         if 'GFLOPS' in part and i > 0:
@@ -212,15 +218,23 @@ class BenchmarkSuite:
                                 gflops = float(parts[i-1])
                             except ValueError:
                                 pass
-                        if 'ms' in part and i > 0:
+                        elif part.endswith('ms') and i >= 0:
                             try:
-                                time_ms = float(parts[i-1])
+                                # Handle "123.45ms" or "123.45 ms" formats
+                                time_str = part.replace('ms', '').replace(',', '')
+                                time_ms = float(time_str)
                             except ValueError:
-                                pass
+                                try:
+                                    # Try previous word if current doesn't work
+                                    if i > 0:
+                                        time_ms = float(parts[i-1])
+                                except ValueError:
+                                    pass
             
             # If we couldn't parse the output, use default values
             if gflops == 0.0 or time_ms == 0.0:
                 print(f"  {name:<15}: Could not parse performance data from output")
+                print(f"    Output: {result.stdout[:100]}...")
                 return {
                     'time_ms': 999999.0,
                     'std_ms': 0.0,

@@ -192,7 +192,8 @@ float benchmark_cublas_matmul(int M, int N, int K, int num_runs = 10) {
     long long flops = 2LL * M * N * K;
     float gflops = flops / (avg_time_ms * 1e6);
     
-    cout << "CUBLAS - Size: " << M << "x" << N << "x" << K 
+    // Output in format that benchmark script can parse
+    cout << "BENCHMARK_RESULT: Size: " << M << "x" << N << "x" << K 
          << ", Time: " << avg_time_ms << " ms"
          << ", Performance: " << gflops << " GFLOPS" << endl;
     
@@ -287,12 +288,23 @@ void print_gpu_info() {
     cout << endl;
 }
 
-int main() {
+int main(int argc, char* argv[]) {
     cout << "=== CUBLAS Matrix Multiplication Benchmark ===" << endl;
     
     print_gpu_info();
     
-    // Test different sizes
+    // Check for command line arguments (for benchmark integration)
+    if (argc == 2) {
+        // Single size benchmark (for integration with benchmark script)
+        int size = atoi(argv[1]);
+        if (size > 0) {
+            cout << "Running benchmark for size: " << size << "x" << size << endl;
+            benchmark_cublas_matmul(size, size, size);
+            return 0;
+        }
+    }
+    
+    // Default comprehensive benchmark
     vector<int> sizes = {128, 256, 512, 1024, 2048, 4096};
     
     cout << "=== Single Matrix Multiplication ===" << endl;
