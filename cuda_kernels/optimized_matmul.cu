@@ -50,7 +50,6 @@ __global__ void optimized_matmul_kernel(
     __shared__ float tile_A[TILE_SIZE][TILE_SIZE + 1];
     __shared__ float tile_B[TILE_SIZE][TILE_SIZE + 1];
     
-    // Thread and block indices
     int tx = threadIdx.x;
     int ty = threadIdx.y;
     int bx = blockIdx.x;
@@ -103,7 +102,6 @@ __global__ void optimized_matmul_kernel(
         
         __syncthreads();
         
-        // Compute using register blocking
         #pragma unroll
         for (int k = 0; k < TILE_SIZE; k++) {
             // Load A values into registers
@@ -131,7 +129,6 @@ __global__ void optimized_matmul_kernel(
         __syncthreads();
     }
     
-    // Write results back to global memory
     #pragma unroll
     for (int i = 0; i < THREAD_TILE_M; i++) {
         #pragma unroll

@@ -34,11 +34,9 @@ __global__ void naive_matmul_kernel(
     float* C, 
     int M, int N, int K
 ) {
-    // Calculate thread's position in the output matrix
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
     
-    // Check bounds
     if (row < M && col < N) {
         float sum = 0.0f;
         
@@ -54,46 +52,39 @@ __global__ void naive_matmul_kernel(
 /**
  * Host function to launch naive matrix multiplication
  */
+ 
 void naive_matmul(
     const float* h_A, 
     const float* h_B, 
     float* h_C, 
-    int M, int N, int K
-) {
-    // Device memory pointers
+    int M, int N, int K) {
+
     float *d_A, *d_B, *d_C;
     
-    // Calculate memory sizes
     size_t size_A = M * K * sizeof(float);
     size_t size_B = K * N * sizeof(float);
     size_t size_C = M * N * sizeof(float);
     
-    // Allocate device memory
     CHECK_CUDA(cudaMalloc(&d_A, size_A));
     CHECK_CUDA(cudaMalloc(&d_B, size_B));
     CHECK_CUDA(cudaMalloc(&d_C, size_C));
     
-    // Copy data to device
     CHECK_CUDA(cudaMemcpy(d_A, h_A, size_A, cudaMemcpyHostToDevice));
     CHECK_CUDA(cudaMemcpy(d_B, h_B, size_B, cudaMemcpyHostToDevice));
     
-    // Launch configuration
-    const int BLOCK_SIZE = 16;  // 16x16 thread blocks
+    const int BLOCK_SIZE = 16; 
     dim3 blockDim(BLOCK_SIZE, BLOCK_SIZE);
     dim3 gridDim(
         (N + BLOCK_SIZE - 1) / BLOCK_SIZE,
         (M + BLOCK_SIZE - 1) / BLOCK_SIZE
     );
     
-    // Launch kernel
     naive_matmul_kernel<<<gridDim, blockDim>>>(d_A, d_B, d_C, M, N, K);
     CHECK_CUDA(cudaGetLastError());
     CHECK_CUDA(cudaDeviceSynchronize());
     
-    // Copy result back to host
     CHECK_CUDA(cudaMemcpy(h_C, d_C, size_C, cudaMemcpyDeviceToHost));
     
-    // Free device memory
     CHECK_CUDA(cudaFree(d_A));
     CHECK_CUDA(cudaFree(d_B));
     CHECK_CUDA(cudaFree(d_C));
@@ -103,7 +94,7 @@ void naive_matmul(
  * Benchmark function for naive implementation
  */
 float benchmark_naive_matmul(int M, int N, int K, int num_runs = 10) {
-    // Allocate host memory
+
     float* h_A = new float[M * K];
     float* h_B = new float[K * N];
     float* h_C = new float[M * N];
@@ -112,7 +103,6 @@ float benchmark_naive_matmul(int M, int N, int K, int num_runs = 10) {
     for (int i = 0; i < M * K; i++) h_A[i] = static_cast<float>(rand()) / RAND_MAX;
     for (int i = 0; i < K * N; i++) h_B[i] = static_cast<float>(rand()) / RAND_MAX;
     
-    // Warm up
     naive_matmul(h_A, h_B, h_C, M, N, K);
     
     // Benchmark
@@ -135,7 +125,6 @@ float benchmark_naive_matmul(int M, int N, int K, int num_runs = 10) {
               << ", Time: " << avg_time_ms << " ms"
               << ", Performance: " << gflops << " GFLOPS" << endl;
     
-    // Cleanup
     delete[] h_A;
     delete[] h_B;
     delete[] h_C;
@@ -149,7 +138,6 @@ float benchmark_naive_matmul(int M, int N, int K, int num_runs = 10) {
 int main() {
     cout << "=== Naive CUDA Matrix Multiplication Benchmark ===" << endl;
     
-    // Get device properties
     cudaDeviceProp prop;
     CHECK_CUDA(cudaGetDeviceProperties(&prop, 0));
     cout << "GPU: " << prop.name << endl;
@@ -158,7 +146,6 @@ int main() {
     cout << "Shared memory per block: " << prop.sharedMemPerBlock / 1024 << " KB" << endl;
     cout << endl;
     
-    // Test different matrix sizes
     int sizes[] = {64, 128, 256, 512, 1024};
     int num_sizes = sizeof(sizes) / sizeof(sizes[0]);
     
